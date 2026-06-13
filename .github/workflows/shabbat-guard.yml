@@ -1,0 +1,37 @@
+name: Shabbat Guard
+
+on:
+  schedule:
+    - cron: '*/15 * * * *'   # כל 15 דקות (UTC). הסקריפט מחשב לפי שעון ישראל בעצמו
+  workflow_dispatch: {}        # מאפשר הרצה ידנית מה-UI
+
+permissions:
+  contents: write              # כדי לשמור בחזרה את state.json
+
+concurrency:
+  group: shabbat-guard
+  cancel-in-progress: false
+
+jobs:
+  guard:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Run shabbat guard
+        env:
+          META_ACCESS_TOKEN: ${{ secrets.META_ACCESS_TOKEN }}
+          META_AD_ACCOUNT_ID: ${{ secrets.META_AD_ACCOUNT_ID }}
+        run: python3 shabbat_guard.py
+
+      - name: Commit state if changed
+        run: |
+          if ! git diff --quiet -- state.json; then
+            git config user.name  "shabbat-guard-bot"
+            git config user.email "actions@github.com"
+            git add state.json
+            git commit -m "state: $(date -u +%Y-%m-%dT%H:%MZ)"
+            git push
+          else
+            echo "state unchanged"
+          fi
